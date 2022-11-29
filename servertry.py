@@ -3,7 +3,7 @@ import socket
 import numpy as np
 import encodings
 import RPi.GPIO as GPIO
-
+import matplotlib.pyplot as plt
 #import for thermal camera
 import board
 import busio
@@ -32,11 +32,14 @@ def number_read_change(prevData):
     data = amg.pixels
     dataTransformed = amg.pixels
 #     print(prevData, data)
+    hotOrNot = False
+    avgTemp = 0
     for row in range(len(data)):
         for temp in range(len(data[row])):
-            #
+            avgTemp += data[row][temp]
             #if temperature is above 300 degrees and stays above 300 for a while it is 100% on
-            if(data[row][temp] > 300):
+            if(data[row][temp] > 200):
+                hotOrNot = True
                 print("Stove is HOT... determining if it is on")
                 #dataTransformed[row][temp] = 1
                 
@@ -53,11 +56,12 @@ def number_read_change(prevData):
             elif ( prevData[row][temp] - data[row][temp] > 1):
                 #temperature is decreasing
                 dataTransformed[row][temp] = -1
-    
-    return [data, dataTransformed]
+            
+            
+    return [data, dataTransformed, avgTemp/64, hotOrNot]
 
 
-def is_incr_or_decr(data):
+def is_incr_or_decr(data, hotOrNot):
     countIncr = 0
     countDecr = 0
     countSame = 0
@@ -73,44 +77,69 @@ def is_incr_or_decr(data):
     
     ##the issue we are running into is that the decrease is happening at a slower rate!!
     if countDecr == max(countIncr, countDecr, countSame) and countDecr > 30:
-        return "stove temperature not changing significantly"
+        return "stove not on: decreasing"
     
-    if countIncr == max(countIncr, countDecr, countSame) and countIncr > 30:
+    elif countIncr == max(countIncr, countDecr, countSame) and countIncr > 30:
         return "stove on"
     
-    if countSame == max(countIncr, countDecr, countSame):
-        return "constant"
+    elif countSame > 50 and hotOrNot:
+        return "stove temperature constant"
     
-    return "constant {} {} {} ".format(countIncr, countDecr, countSame)
+    elif countIncr < 4:
+        return "stove not on (no incr)"
+    elif countDecr < 4:
+        return "stove on (no decr)"
+#     if countDecr + countSame > countIncr:
+#         return "stove not on"
     
+#     if countSame == max(countIncr, countDecr, countSame):
+#         return "constant"
+    return "inconsistent reading... recalculating"
+#    return "constant {} {} {} ".format(countIncr, countDecr, countSame)
     
+def getAvgTemp(data):
+    avgTemp = 0
+    for row in range(len(data)):
+        for temp in range(len(data[row])):
+            avgTemp += data[row][temp]
+    
+    return avgTemp/64
             
 def server2():
     f = open("/home/pi/stoveTry1.csv", "w")
     count=0
     prevData = amg.pixels
-
+    
+    startTime = time.time()
     print(prevData)
     
     prevArray = []
     prevArray.append(prevData)
+    prevTempReading = []
+#     prevTempReading.append(
+    prevTimes = []
+#     prevTimes.append(0)
     #get an moving average
     countIncr = 0
     countDecr = 0
     countSame = 0
     
-    while count< 100:
-        if( len(prevArray) > 20):
-            my_data, change = number_read_change(prevArray[len(prevArray)-20] )
-            valString = is_incr_or_decr(change)
-            print(valString)
+    while count< 200:
+        if( len(prevArray) > 40):
+            my_data, change, avgTemp, hotOrNot = number_read_change(prevArray[len(prevArray)-40] )
+            valString = is_incr_or_decr(change, hotOrNot)
+            print(valString,"- Stove temperature: {0:.1f} degrees Celcius".format(avgTemp))
             prevData= my_data
             
         else:
             print("Analyzing the stove's current conditions")
             prevData = amg.pixels
+            avgTemp = getAvgTemp(prevData)
             
         prevArray.append(prevData)
+        prevTempReading.append(avgTemp)
+        prevTimes.append( time.time() - startTime)
+        
 #         f.write(my_data)
 #         f.write("\n")
         #print(my_data)
@@ -120,6 +149,12 @@ def server2():
         time.sleep(0.5)
         count+=1
         
+    
+    plt.plot(prevTimes,prevTempReading)
+    plt.title("change in temperature over time")
+    plt.xlabel("time")
+    plt.ylabel("temperature (C)")
+    plt.show()
     f.close()
 #    print(
 def my_server():
