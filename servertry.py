@@ -26,19 +26,50 @@ def read_camera():
         data +="\n"
     return data
 
+def quadrantsSeperate(data):
+    
+    data = amg.pixels
+    
+    bot_right = [data[4][4:], data[5][4:],data[6][4:],data[7][4:]]
+    bot_left = [data[4][:4], data[5][:4],data[6][:4],data[7][:4]]
+    top_right = [data[0][4:], data[1][4:],data[2][4:],data[3][4:]]
+    top_left = [data[0][:4], data[1][:4],data[2][:4],data[3][:4]]
+    
+    #print(top_right, top_left)
+    
+    tempBR = quad_temp_check(bot_right)
+    tempBL = quad_temp_check(bot_left)
+    tempTR = quad_temp_check(top_right)
+    tempTL = quad_temp_check(top_left)
+    
+    print( ("TEMPERATURES IN ALL QUADRANTS {0:.1f}, {1:.1f}, {2:.1f}, {3:.1f}").format( tempTR, tempTL, tempBR, tempBL) )
+    
+    return tempTR, tempTL, tempBR, tempBL
+
+def quad_temp_check(side):
+    avgTemp = 0
+     
+    for row in range(len(side)):
+        for temp in range(len(side[row])):
+            avgTemp += side[row][temp]
+    #print(avgTemp)        
+    return avgTemp/16
 
 def number_read_change(prevData):
     
     data = amg.pixels
     dataTransformed = amg.pixels
 #     print(prevData, data)
+    maxVal= data[0][0]
+    
     hotOrNot = False
     avgTemp = 0
     for row in range(len(data)):
         for temp in range(len(data[row])):
             avgTemp += data[row][temp]
+            maxVal = max(maxVal, data[row][temp])
             #if temperature is above 300 degrees and stays above 300 for a while it is 100% on
-            if(data[row][temp] > 200):
+            if(data[row][temp] > 100):
                 hotOrNot = True
                 print("Stove is HOT... determining if it is on")
                 #dataTransformed[row][temp] = 1
@@ -57,11 +88,25 @@ def number_read_change(prevData):
                 #temperature is decreasing
                 dataTransformed[row][temp] = -1
             
-            
+    print(maxVal)
+    print(dataTransformed)
     return [data, dataTransformed, avgTemp/64, hotOrNot]
 
-
-def is_incr_or_decr(data, hotOrNot):
+def maxTempVals(tempVals):
+    if( tempVals[0] == max(tempVals) ):
+        #tempTR,
+        print("bottom left quadrant most likely on")
+    elif( tempVals[1] == max(tempVals) ):
+        #tempTL,
+        print("top left quadrant most likely on")
+    elif( tempVals[2] == max(tempVals) ):
+        #tempBR,
+        print("bottom right quadrant most likely on")
+    else:
+        print("top left quadrant most likely on")
+        #tempBL
+        
+def is_incr_or_decr(data, hotOrNot, tempVals):
     countIncr = 0
     countDecr = 0
     countSame = 0
@@ -75,25 +120,30 @@ def is_incr_or_decr(data, hotOrNot):
             if data[row][temp] == -1:
                 countDecr +=1
     
+    print(countIncr, countDecr, countSame)
     ##the issue we are running into is that the decrease is happening at a slower rate!!
     if countDecr == max(countIncr, countDecr, countSame) and countDecr > 30:
         return "stove not on" #decreasing
     
     elif countIncr == max(countIncr, countDecr, countSame) and countIncr > 30:
+        #maxTempVals(tempVals)
         return "stove on"
     
+    
+    
+    elif countIncr < 3:
+        return "stove not on " #(no incr)
+    elif countDecr < 6:
+        maxTempVals(tempVals)
+        return "stove on" # (no decr)"
     elif countSame > 50 and hotOrNot:
         return "stove temperature constant"
-    
-    elif countIncr < 4:
-        return "stove not on " #(no incr)
-    elif countDecr < 4:
-        return "stove on" # (no decr)"
 #     if countDecr + countSame > countIncr:
 #         return "stove not on"
     
 #     if countSame == max(countIncr, countDecr, countSame):
 #         return "constant"
+    maxTempVals(tempVals)
     return "inconsistent reading... recalculating"
 #    return "constant {} {} {} ".format(countIncr, countDecr, countSame)
     
@@ -127,8 +177,11 @@ def server2():
     while count< 200:
         if( len(prevArray) > 40):
             my_data, change, avgTemp, hotOrNot = number_read_change(prevArray[len(prevArray)-40] )
-            valString = is_incr_or_decr(change, hotOrNot)
+            tempVals = quadrantsSeperate(my_data)
+            print(tempVals)
+            valString = is_incr_or_decr(change, hotOrNot, tempVals)
             print(valString,"- Stove temperature: {0:.1f} degrees Celcius".format(avgTemp))
+            
             prevData= my_data
             
         else:
