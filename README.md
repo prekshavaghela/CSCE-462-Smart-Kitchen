@@ -2,7 +2,7 @@
 The code for CSCE 462 Smart Kitchen Project by Shri Mathavan and Preksha Vaghela
 
 
-** EXPERIMENT FIGURES:**
+### EXPERIMENT FIGURES:
 
 Figure 10: stove is off and my hand is entering the frame 
 
