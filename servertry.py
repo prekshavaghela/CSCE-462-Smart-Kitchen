@@ -9,6 +9,7 @@ import board
 import busio
 import time
 import adafruit_amg88xx
+import statistics
 
 HOST= '10.136.104.173' #'10.136.104.154' #
 PORT = 65432
@@ -89,8 +90,8 @@ def number_read_change(prevData):
                 dataTransformed[row][temp] = -1
             
     print(maxVal)
-    print(dataTransformed)
-    return [data, dataTransformed, avgTemp/64, hotOrNot]
+    #print(dataTransformed)
+    return [data, dataTransformed, avgTemp/64, hotOrNot, maxVal]
 
 def maxTempVals(tempVals):
     if( tempVals[0] == max(tempVals) ):
@@ -106,7 +107,7 @@ def maxTempVals(tempVals):
         print("top left quadrant most likely on")
         #tempBL
         
-def is_incr_or_decr(data, hotOrNot, tempVals):
+def is_incr_or_decr(data, hotOrNot, tempVals, maxVals):
     countIncr = 0
     countDecr = 0
     countSame = 0
@@ -122,6 +123,12 @@ def is_incr_or_decr(data, hotOrNot, tempVals):
     
     print(countIncr, countDecr, countSame)
     ##the issue we are running into is that the decrease is happening at a slower rate!!
+#     if( len(maxVals) > 10):
+#         if abs(maxVals[len(maxVals) -1]) > 400 and abs(maxVals[len(maxVals) -1] - maxVals[len(maxVals) -10] ):
+#             return "stove on and dangerously high"
+#         
+    
+    
     if countDecr == max(countIncr, countDecr, countSame) and countDecr > 30:
         return "stove not on" #decreasing
     
@@ -130,10 +137,9 @@ def is_incr_or_decr(data, hotOrNot, tempVals):
         return "stove on"
     
     
-    
     elif countIncr < 3:
         return "stove not on " #(no incr)
-    elif countDecr < 6:
+    elif countDecr <= 6:
         maxTempVals(tempVals)
         return "stove on" # (no decr)"
     elif countSame > 50 and hotOrNot:
@@ -173,13 +179,25 @@ def server2():
     countIncr = 0
     countDecr = 0
     countSame = 0
+    maxVals = []
     
     while count< 200:
         if( len(prevArray) > 40):
-            my_data, change, avgTemp, hotOrNot = number_read_change(prevArray[len(prevArray)-40] )
+            my_data, change, avgTemp, hotOrNot, maxVal = number_read_change(prevArray[len(prevArray)-40] )
+            
+            if( len(maxVals) > 3):
+                avgValMax = statistics.mean(maxVals)
+                stdAvgVal = statistics.stdev(maxVals)
+                
+                if( avgValMax - 2*stdAvgVal < maxVal < avgValMax - 2*stdAvgVal):
+                    maxVals.append(maxVal)
+            else:
+                maxVals.append(maxVal)
+                
+                
             tempVals = quadrantsSeperate(my_data)
             print(tempVals)
-            valString = is_incr_or_decr(change, hotOrNot, tempVals)
+            valString = is_incr_or_decr(change, hotOrNot, tempVals, maxVals)
             print(valString,"- Stove temperature: {0:.1f} degrees Celcius".format(avgTemp))
             
             prevData= my_data
@@ -198,7 +216,7 @@ def server2():
         #print(my_data)
         #print(change)
         
-        
+        print()
         time.sleep(0.5)
         count+=1
         
@@ -228,7 +246,8 @@ def my_server():
                     
                     if str(data) == "Data":
 #                         print("enters")
-                        my_data = read_camera()
+                        
+                        my_data = server2()
                         
                         encoded_data = my_data.encode('utf-8')
                         conn.sendall(encoded_data)
