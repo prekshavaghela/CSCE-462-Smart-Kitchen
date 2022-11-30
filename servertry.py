@@ -77,7 +77,7 @@ def is_incr_or_decr(data, hotOrNot):
     
     ##the issue we are running into is that the decrease is happening at a slower rate!!
     if countDecr == max(countIncr, countDecr, countSame) and countDecr > 30:
-        return "stove not on: decreasing"
+        return "stove not on" #decreasing
     
     elif countIncr == max(countIncr, countDecr, countSame) and countIncr > 30:
         return "stove on"
@@ -86,9 +86,9 @@ def is_incr_or_decr(data, hotOrNot):
         return "stove temperature constant"
     
     elif countIncr < 4:
-        return "stove not on (no incr)"
+        return "stove not on " #(no incr)
     elif countDecr < 4:
-        return "stove on (no decr)"
+        return "stove on" # (no decr)"
 #     if countDecr + countSame > countIncr:
 #         return "stove not on"
     
