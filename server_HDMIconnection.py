@@ -11,7 +11,7 @@ import time
 import adafruit_amg88xx
 import statistics
 
-HOST= '10.136.104.175' #'10.136.104.154' #
+HOST= '10.136.104.173' #'10.136.104.154' #
 PORT = 65432
 i2c = busio.I2C(board.SCL, board.SDA)
 amg = adafruit_amg88xx.AMG88XX(i2c)
@@ -72,7 +72,7 @@ def number_read_change(prevData):
             #if temperature is above 300 degrees and stays above 300 for a while it is 100% on
             if(data[row][temp] > 100):
                 hotOrNot = True
-                print("Stove is HOT... determining if it is on")
+                
                 #dataTransformed[row][temp] = 1
                 
             if( data[row][temp] - prevData[row][temp] == 0):
@@ -88,7 +88,9 @@ def number_read_change(prevData):
             elif ( prevData[row][temp] - data[row][temp] > 1):
                 #temperature is decreasing
                 dataTransformed[row][temp] = -1
-            
+    
+    if hotOrNot:
+        print("Stove is HOT... determining if it is on")
     #print(maxVal)
     #print(dataTransformed)
     return [data, dataTransformed, avgTemp/64, hotOrNot, maxVal]
@@ -96,15 +98,15 @@ def number_read_change(prevData):
 def maxTempVals(tempVals):
     if( tempVals[0] == max(tempVals) ):
         #tempTR,
-        return("bottom left quadrant most likely on.")
+        return("bottom left quadrant most likely on")
     elif( tempVals[1] == max(tempVals) ):
         #tempTL,
-        return("top left quadrant most likely on.")
+        return("top left quadrant most likely on")
     elif( tempVals[2] == max(tempVals) ):
         #tempBR,
-        return("bottom right quadrant most likely on.")
+        return("bottom right quadrant most likely on")
     else:
-        return("top left quadrant most likely on.")
+        return("top left quadrant most likely on")
         #tempBL
         
 def is_incr_or_decr(data, hotOrNot, tempVals, maxVals):
@@ -141,7 +143,7 @@ def is_incr_or_decr(data, hotOrNot, tempVals, maxVals):
         return "stove not on " #(no incr)
     elif countDecr <= 6:
         x = maxTempVals(tempVals)
-        return x + " stove on" # (no decr)"
+        return x, "stove on" # (no decr)"
     elif countSame > 50 and hotOrNot:
         return "stove temperature constant"
 #     if countDecr + countSame > countIncr:
@@ -150,7 +152,7 @@ def is_incr_or_decr(data, hotOrNot, tempVals, maxVals):
 #     if countSame == max(countIncr, countDecr, countSame):
 #         return "constant"
     x = maxTempVals(tempVals)
-    return x + " inconsistent reading... recalculating"
+    return x, "inconsistent reading... recalculating"
 #    return "constant {} {} {} ".format(countIncr, countDecr, countSame)
     
 def getAvgTemp(data):
@@ -163,105 +165,70 @@ def getAvgTemp(data):
             
 def server2():
     f = open("/home/pi/stoveTry1.csv", "w")
+    count=0
+    prevData = amg.pixels
     
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.bind((HOST, PORT))
-        s.listen(5)
-        print("ENTERED")
-        
-        while True:
-            conn, addr = s.accept()
-            print("true")
+    startTime = time.time()
+    #print(prevData)
+    
+    prevArray = []
+    prevArray.append(prevData)
+    prevTempReading = []
+#     prevTempReading.append(
+    prevTimes = []
+#     prevTimes.append(0)
+    #get an moving average
+    countIncr = 0
+    countDecr = 0
+    countSame = 0
+    maxVals = []
+    
+    while count< 200:
+        if( len(prevArray) > 40):
+            my_data, change, avgTemp, hotOrNot, maxVal = number_read_change(prevArray[len(prevArray)-40] )
             
-            with conn:
-                print("connected by ", addr)
-                while True:
-                    data = conn.recv(1024).decode('utf-8')
-                    
-                    
-                    if str(data) == "Data":
-                                            
-                        stringResults = ""
-                        count=0
-                        prevData = amg.pixels
-                        
-                        startTime = time.time()
-                        #print(prevData)
-                        
-                        prevArray = []
-                        prevArray.append(prevData)
-                        prevTempReading = []
-                    #     prevTempReading.append(
-                        prevTimes = []
-                    #     prevTimes.append(0)
-                        #get an moving average
-                        countIncr = 0
-                        countDecr = 0
-                        countSame = 0
-                        maxVals = []
-                        
-                        while count< 200:
-                            if( len(prevArray) > 40):
-                                my_data, change, avgTemp, hotOrNot, maxVal = number_read_change(prevArray[len(prevArray)-40] )
-                                
-                                
-                                if( len(maxVals) > 3):
-                                    avgValMax = statistics.mean(maxVals)
-                                    stdAvgVal = statistics.stdev(maxVals)
-                                    
-                                    if( avgValMax - 2*stdAvgVal < maxVal < avgValMax - 2*stdAvgVal):
-                                        maxVals.append(maxVal)
-                                else:
-                                    maxVals.append(maxVal)
-                                    
-                                if hotOrNot:
-                                    stringResults += "stove temperature extremely HOT"
-                                tempVals = quadrantsSeperate(my_data)
-                                #print(tempVals)tempTR, tempTL, tempBR, tempBL
-                                temperatureStr = ("TEMPERATURES IN TOP RIGHT: {0:.1f}, TEMPERATURES IN TOP LEFT: {1:.1f},TEMPERATURES IN BOTTOM RIGHT: {2:.1f}, TEMPERATURES IN BOTTOM LEFT: {3:.1f}").format( tempVals[0],  tempVals[1],  tempVals[2],  tempVals[3])
-                                stringResults += temperatureStr
-                                stringResults += "\n"
-                                
-                                valString = is_incr_or_decr(change, hotOrNot, tempVals, maxVals)
-                                print(valString,"- Stove temperature: {0:.1f} degrees Celcius".format(avgTemp))
-                                stringResults += valString
-                                stringResults += "- Stove temperature: {0:.1f} degrees Celcius".format(avgTemp)
-                                stringResults += "\n"
-                                
-                                prevData= my_data
-                                
-                            else:
-                                print("Analyzing the stove's current conditions")
-                                prevData = amg.pixels
-                                avgTemp = getAvgTemp(prevData)
-                                stringResults += "Calibrating the stoves current conditons for 20 seconds"
-                                stringResults += "\n"
-                                
-                            prevArray.append(prevData)
-                            prevTempReading.append(avgTemp)
-                            prevTimes.append( time.time() - startTime)
-                            
-                    #         f.write(my_data)
-                    #         f.write("\n")
-                            #print(my_data)
-                            #print(change)
-                            
-                            print()
-                            time.sleep(0.5)
-                            count+=1
-                            
-                        
-                            encoded_data = stringResults.encode('utf-8')
-                            conn.sendall(encoded_data)
-                            print(stringResults)
-                            stringResults = ""
-                    
-                    
-                    elif str(data) == "Quit":
-                        return
-                    
-                    if not data:
-                        pass
+            if( len(maxVals) > 3):
+                avgValMax = statistics.mean(maxVals)
+                stdAvgVal = statistics.stdev(maxVals)
+                
+                if( avgValMax - 2*stdAvgVal < maxVal < avgValMax - 2*stdAvgVal):
+                    maxVals.append(maxVal)
+            else:
+                maxVals.append(maxVal)
+                
+                
+            tempVals = quadrantsSeperate(my_data)
+            print(tempVals)
+            valString = is_incr_or_decr(change, hotOrNot, tempVals, maxVals)
+            print(valString,"- Stove temperature: {0:.1f} degrees Celcius".format(avgTemp))
+            
+            prevData= my_data
+            
+        else:
+            print("Analyzing the stove's current conditions")
+            prevData = amg.pixels
+            avgTemp = getAvgTemp(prevData)
+            
+        prevArray.append(prevData)
+        prevTempReading.append(avgTemp)
+        prevTimes.append( time.time() - startTime)
+        
+#         f.write(my_data)
+#         f.write("\n")
+        #print(my_data)
+        #print(change)
+        
+        print()
+        time.sleep(0.5)
+        count+=1
+        
+    
+    plt.plot(prevTimes,prevTempReading)
+    plt.title("change in temperature over time")
+    plt.xlabel("time")
+    plt.ylabel("temperature (C)")
+    plt.show()
+    f.close()
 #    print(
 def my_server():
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
