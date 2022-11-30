@@ -1,6 +1,7 @@
 # CSCE-462-Smart-Kitchen
 The code for CSCE 462 Smart Kitchen Project by Shri Mathavan and Preksha Vaghela
 
+This code creates a socket connection with a client and then transmits data about the state of a stove top. 
 
 ### PYTHON FILES:
 
