@@ -77,11 +77,11 @@ def number_read_change(prevData):
                 
             if( data[row][temp] - prevData[row][temp] == 0):
                 dataTransformed[row][temp] =0
-            elif(  3 > data[row][temp] - prevData[row][temp] > 0):
+            elif(  1 > data[row][temp] - prevData[row][temp] > 0):
                 dataTransformed[row][temp] =0
             elif 0 < prevData[row][temp] - data[row][temp] < 1:
                 dataTransformed[row][temp] =0
-            elif( data[row][temp] - prevData[row][temp] > 3 ):
+            elif( data[row][temp] - prevData[row][temp] > 1 ):
                 #temperature is increasing
                 #print(data[row][temp], prevData[row][temp])
                 dataTransformed[row][temp] = 1
@@ -96,15 +96,15 @@ def number_read_change(prevData):
 def maxTempVals(tempVals):
     if( tempVals[0] == max(tempVals) ):
         #tempTR,
-        return("bottom left quadrant most likely on.")
+        return("bottom left quadrant most likely heat source.")
     elif( tempVals[1] == max(tempVals) ):
         #tempTL,
-        return("top left quadrant most likely on.")
+        return("top left quadrant most likely heat source.")
     elif( tempVals[2] == max(tempVals) ):
         #tempBR,
-        return("bottom right quadrant most likely on.")
+        return("bottom right quadrant most likely heat source.")
     else:
-        return("top left quadrant most likely on.")
+        return("top left quadrant most likely on heat source.")
         #tempBL
         
 def is_incr_or_decr(data, hotOrNot, tempVals, maxVals):
@@ -126,13 +126,16 @@ def is_incr_or_decr(data, hotOrNot, tempVals, maxVals):
 #     if( len(maxVals) > 10):
 #         if abs(maxVals[len(maxVals) -1]) > 400 and abs(maxVals[len(maxVals) -1] - maxVals[len(maxVals) -10] ):
 #             return "stove on and dangerously high"
-#         
+#
+    if max(tempVals) > 100:
+        x = maxTempVals(tempVals)
+        return x + ": stove on and dangerous heat"
     
     
     if countDecr == max(countIncr, countDecr, countSame) and countDecr > 30:
         return "stove not on" #decreasing
     
-    elif countIncr == max(countIncr, countDecr, countSame) and countIncr > 30:
+    elif countIncr == max(countIncr, countDecr, countSame) and countIncr > 12:
         #maxTempVals(tempVals)
         return "stove on"
     
@@ -142,7 +145,7 @@ def is_incr_or_decr(data, hotOrNot, tempVals, maxVals):
     elif countDecr <= 6:
         x = maxTempVals(tempVals)
         return x + " stove on" # (no decr)"
-    elif countSame > 50 and hotOrNot:
+    elif countSame > 45 and hotOrNot:
         return "stove temperature constant"
 #     if countDecr + countSame > countIncr:
 #         return "stove not on"
@@ -216,6 +219,7 @@ def server2():
                                     
                                 if hotOrNot:
                                     stringResults += "stove temperature extremely HOT"
+                                    stringResults += "\n"
                                 tempVals = quadrantsSeperate(my_data)
                                 #print(tempVals)tempTR, tempTL, tempBR, tempBL
                                 temperatureStr = ("TEMPERATURES IN TOP RIGHT: {0:.1f}, TEMPERATURES IN TOP LEFT: {1:.1f},TEMPERATURES IN BOTTOM RIGHT: {2:.1f}, TEMPERATURES IN BOTTOM LEFT: {3:.1f}").format( tempVals[0],  tempVals[1],  tempVals[2],  tempVals[3])
